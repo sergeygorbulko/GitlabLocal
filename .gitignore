@@ -1,0 +1,10 @@
+# Vagrant
+.vagrant/
+*.log
+
+# JetBrains IDEs
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
