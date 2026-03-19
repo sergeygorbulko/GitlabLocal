@@ -15,9 +15,33 @@ if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
 $HostName = "gitlab.local"
 $HostsPath = "C:\Windows\System32\drivers\etc\hosts"
 
+# 3. Check VM status and start if necessary
+Write-Host "Checking GitLab VM status..." -ForegroundColor Cyan
+try {
+    $vagrantStatus = vagrant status --machine-readable | Select-String ",state,(\w+)$"
+    $vmState = "unknown"
+    if ($vagrantStatus) {
+        $vmState = $vagrantStatus.Matches.Groups[1].Value
+    }
+
+    if ($vmState -ne "running") {
+        Write-Host "VM is not running (status: $vmState). Starting VM..." -ForegroundColor Yellow
+        vagrant up
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to start Vagrant VM."
+        }
+    } else {
+        Write-Host "VM is already running." -ForegroundColor Green
+    }
+} catch {
+    Write-Host "Error checking/starting VM: $($_.Exception.Message)" -ForegroundColor Red
+    Read-Host "Press Enter to exit..."
+    exit
+}
+
 Write-Host "Getting GitLab VM IP address..." -ForegroundColor Cyan
 
-# 3. Get IP address via vagrant ssh
+# 4. Get IP address via vagrant ssh
 # vagrant ssh -c "hostname -I" returns a list of IPs, we take the first one (most likely for external network)
 try {
     $rawIpOutput = vagrant ssh -c "hostname -I" 2>$null
@@ -38,7 +62,7 @@ try {
 
 Write-Host "Found IP: $GitlabIp" -ForegroundColor Green
 
-# 4. Update hosts file
+# 5. Update hosts file
 Write-Host "Updating hosts file..." -ForegroundColor Cyan
 
 $hostsContent = Get-Content $HostsPath
@@ -71,7 +95,7 @@ try {
     exit
 }
 
-# 5. Create desktop shortcut
+# 6. Create desktop shortcut
 Write-Host "Creating desktop shortcut..." -ForegroundColor Cyan
 
 $WshShell = New-Object -ComObject WScript.Shell
@@ -92,7 +116,7 @@ $Shortcut.Save()
 
 Write-Host "Shortcut created on desktop: $ShortcutPath" -ForegroundColor Green
 
-# 6. Launch browser
+# 7. Launch browser
 Write-Host "Opening http://$HostName in browser..." -ForegroundColor Cyan
 Start-Process "http://$HostName"
 
