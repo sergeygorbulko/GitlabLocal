@@ -19,8 +19,8 @@ if [ -z "$IP_ADDR" ]; then
     IP_ADDR=$(hostname -I | awk '{print $1}')
 fi
 
-echo "Installing GitLab CE with EXTERNAL_URL=http://$IP_ADDR"
-sudo EXTERNAL_URL="http://$IP_ADDR" apt-get install -y gitlab-ce
+echo "Installing GitLab CE with EXTERNAL_URL=http://gitlab.local"
+sudo EXTERNAL_URL="http://gitlab.local" apt-get install -y gitlab-ce
 
 # Ждем завершения базовой настройки
-echo "GitLab base installation finished. Access at http://$IP_ADDR"
+echo "GitLab base installation finished. Access at http://gitlab.local"

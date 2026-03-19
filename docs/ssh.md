@@ -62,23 +62,3 @@ ssh -T git@gitlab.local
    git clone git@gitlab.local:root/my-project.git
    ```
 
----
-
-## 🚀 Решение проблем (Troubleshooting)
-
-### Ошибка: "Permission denied (publickey)"
-- Проверьте, добавлен ли именно **публичный** ключ (`.pub`) в GitLab.
-- Убедитесь, что ваш SSH-агент запущен и видит ключ:
-  ```powershell
-  ssh-add -l
-  ```
-
-### Ошибка: "Could not resolve hostname gitlab.local"
-- Убедитесь, что вы запустили скрипт `update-gitlab-host.ps1` от имени администратора.
-- Проверьте файл `C:\Windows\System32\drivers\etc\hosts` — там должна быть запись с IP вашей ВМ.
-
-### Зависание SSH при `vagrant up`
-Это часто происходит в Hyper-V, если:
-1. **Не выбран сетевой коммутатор:** Vagrant ждет, пока вы выберете сеть в консоли. Проверьте окно PowerShell, где запущен `vagrant up`.
-2. **Firewall:** Ваш антивирус или брандмауэр Windows блокирует SSH-трафик внутри виртуальной сети.
-3. **Неверный тип коммутатора:** Если `public_network` не работает, попробуйте изменить его в `Vagrantfile` на использование `Default Switch`.

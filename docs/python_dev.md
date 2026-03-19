@@ -14,7 +14,7 @@
    ```
 2. **Создайте проект библиотеки**:
    ```powershell
-   uv init --lib my-awesome-lib
+   .\.venv\Scripts\uv init --lib my-awesome-lib
    cd my-awesome-lib
    ```
 
@@ -93,7 +93,7 @@
 
 1. **Соберите пакет**:
    ```bash
-   uv build
+   .\.venv\Scripts\uv build
    ```
 2. **Опубликуйте пакет** в GitLab (используя `twine` или напрямую через `uv publish` если версия позволяет):
    
@@ -102,12 +102,12 @@
 
    ```bash
    # Установка twine для загрузки (если uv publish не настроен)
-   uv tool install twine
+   .\.venv\Scripts\uv tool install twine
 
    # Загрузка в реестр GitLab
    $env:TWINE_USERNAME = "root" # или имя вашего пользователя
    $env:TWINE_PASSWORD = "ВАШ_ACCESS_TOKEN"
-   uv run twine upload --repository-url http://gitlab.local/api/v4/projects/<PROJECT_ID>/packages/pypi dist/*
+   .\.venv\Scripts\uv run twine upload --repository-url http://gitlab.local/api/v4/projects/<PROJECT_ID>/packages/pypi dist/*
    ```
 
 ---
@@ -128,21 +128,50 @@
    name = "gitlab"
    url = "http://gitlab.local/api/v4/projects/<PROJECT_ID>/packages/pypi/simple"
    publish-url = "http://gitlab.local/api/v4/projects/<PROJECT_ID>/packages/pypi"
-
-   [tool.uv.sources]
-   my-awesome-lib = { index = "gitlab" }
    ```
+
+   **Важно:** Используйте именно `http://gitlab.local`, а не прямой IP-адрес. Если GitLab возвращает ссылки с IP-адресом (как в ошибке выше), это означает, что в настройках GitLab (`external_url`) указан IP вместо домена. 
+   
+   Чтобы исправить это:
+   1. Зайдите в консоль ВМ: `vagrant ssh`.
+   2. Выполните команду: `sudo gitlab-ctl reconfigure` (наши скрипты теперь автоматически ставят `gitlab.local`).
+   3. Или вручную проверьте `/etc/gitlab/gitlab.rb`, чтобы там было `external_url 'http://gitlab.local'`.
 
 3. **Авторизация для uv**:
-   Чтобы `uv` мог скачивать пакеты из приватного реестра, задайте токен в переменной окружения:
-   ```powershell
-   $env:UV_INDEX_GITLAB_PASSWORD = "ВАШ_ACCESS_TOKEN"
-   ```
+   Для доступа к приватному реестру GitLab, `uv` требует токен. `uv` сопоставляет переменные окружения с индексами по их имени в `pyproject.toml` (в нашем примере это `gitlab`).
+
+   **Важно:** Имя переменной строится по шаблону `UV_INDEX_<ИМЯ_ИНДЕКСА>_PASSWORD`.
+
+   *   **Вариант 1: Personal Access Token (PAT)**
+       - Создается в GitLab (**User Settings** -> **Access Tokens**) с областью `api`.
+       - Рекомендуется также задать `UV_INDEX_GITLAB_USERNAME` (обычно это `root` или ваше имя пользователя).
+       ```powershell
+       $env:UV_INDEX_GITLAB_USERNAME = "root"
+       $env:UV_INDEX_GITLAB_PASSWORD = "ВАШ_ACCESS_TOKEN"
+       ```
+
+   *   **Вариант 2: Deploy Token (Рекомендуется для CI)**
+       - Создается в конкретном проекте (**Settings** -> **Repository** -> **Deploy Tokens**) с областью `read_package_registry`.
+       - При создании вы получите `Username` и `Password`.
+       - Задайте пароль в переменную:
+       ```powershell
+       $env:UV_INDEX_GITLAB_PASSWORD = "ПАРОЛЬ_ДЕПЛОЙ_ТОКЕНА"
+       ```
+       *Примечание: Если `uv` не может авторизоваться, можно также явно указать имя пользователя:*
+       ```powershell
+       $env:UV_INDEX_GITLAB_USERNAME = "ИМЯ_ДЕПЛОЙ_ТОКЕНА"
+       ```
+
+   *Важно:* Если вы используете домен `gitlab.local`, убедитесь, что предварительно запустили `update-gitlab-host.ps1` для обновления IP в файле `hosts`.*
 
 4. **Добавление библиотеки**:
    ```bash
-   uv add my-awesome-lib
+   .\.venv\Scripts\uv add my-awesome-lib
    ```
+   Если вы получаете `tcp connect error`, проверьте:
+   1. Запущена ли ВМ (`vagrant status`).
+   2. Обновлен ли IP в `hosts` (запустите `update-gitlab-host.ps1`).
+   3. Не блокирует ли брандмауэр/антивирус соединение по HTTP.
 
 Теперь `uv` при поиске пакета `my-awesome-lib` пойдёт не в глобальный PyPI, а в ваш локальный GitLab.
 
@@ -151,41 +180,7 @@
 ## Резюме Workflow
 1. Пишем код в `my-awesome-lib`.
 2. `git push` -> код улетает в локальный GitLab и зеркалируется на GitHub.
-3. `uv build` -> собираем `.whl` и `.tar.gz`.
+3. `.\.venv\Scripts\uv build` -> собираем `.whl` и `.tar.gz`.
 4. `twine upload` -> отправляем сборку в GitLab Package Registry.
-5. В приложении `my-app` делаем `uv add my-awesome-lib` -> библиотека подтягивается из локального реестра.
+5. В приложении `my-app` делаем `.\.venv\Scripts\uv add my-awesome-lib` -> библиотека подтягивается из локального реестра.
 
----
-
-## 🚀 Решение проблем (Troubleshooting)
-
-### Использование `uv`, установленного внутри `.venv`
-Если вы используете `uv`, установленный как зависимость внутри виртуального окружения (например, через `pip install uv` или `uv add uv`), команды могут вести себя иначе, чем при глобальной установке.
-
-1. **Запуск через префикс**:
-   Вместо просто `uv build`, используйте:
-   - В PowerShell: `.\.venv\Scripts\uv build`
-   - В Bash/Zsh: `./.venv/bin/uv build`
-2. **Рекомендуемый способ**:
-   Даже если `uv` есть в `.venv`, лучше иметь **глобальную версию** для управления самими окружениями:
-   ```powershell
-   powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-   ```
-   Это позволит избежать конфликтов прав доступа при попытке `uv` проанализировать интерпретатор, который сам же его запустил.
-
-### Ошибка `os error 5 (Access Denied)` при `uv build`
-Если вы видите ошибку `Failed to inspect Python interpreter ... Отказано в доступе (os error 5)`, это часто случается на Windows, когда:
-1. В пути к Python есть **кириллица** (например, `C:\Users\Сергей\...`).
-2. Недостаточно прав для чтения метаданных исполняемого файла Python.
-
-**Как исправить:**
-1. **Используйте `uv` для управления версиями Python** (рекомендуется):
-   Вместо использования системного Python, установленного в вашу домашнюю папку, позвольте `uv` скачать и использовать свою версию в чистом пути:
-   ```powershell
-   uv python install 3.11
-   uv venv --python 3.11
-   ```
-2. **Переустановите Python в путь без кириллицы**:
-   Например, в `C:\Python311`. При установке выберите "Custom installation" и укажите путь `C:\Python311`.
-3. **Запустите терминал от имени Администратора**:
-   Иногда это помогает обойти ограничения прав доступа, но первый способ (через `uv python install`) является более правильным.
